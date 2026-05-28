@@ -1,0 +1,11 @@
+total 60
+drwxrwxr-x  3 jack jack  4096 May 28 17:15 .
+drwxr-xr-x 15 jack jack  4096 May 28 17:14 ..
+drwxrwxr-x  8 jack jack  4096 May 28 17:06 .git
+-rw-r--r--  1 root root   779 May 26 19:55 Makefile
+-rw-rw-r--  1 jack jack     0 May 28 17:15 a.txt
+-rw-r--r--  1 root root  2726 May 26 20:24 builtins.c
+-rw-r--r--  1 root root   688 May 26 20:12 builtins.h
+-rwxrwxr-x  1 jack jack 24672 May 28 17:14 myshell
+-rw-r--r--  1 root root  5534 May 28 17:14 myshell.c
+-rw-r--r--  1 root root     0 May 26 16:27 test.c
