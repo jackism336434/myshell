@@ -2,8 +2,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include "builtins.h"
 
+
+#include "builtins.h"
+#include "redirect.h"
 
 // 【新增】全局静态变量，用于存放历史命令（只对当前文件可见，保证封装性）
 static char history_books[MAX_HISTORY][1024];
@@ -89,8 +91,26 @@ int handle_builtin(char **args, int *is_builtin) {
     
     for (int i = 0; i < num_builtins(); i++) {
         if (strcmp(args[0], builtins[i].name) == 0) {
-            *is_builtin = 1;         // 标记：这确实是一个内建命令
-            return builtins[i].func(args); // 执行并返回状态
+            *is_builtin = 1;  // 取1则为内建命令
+            // 内建命令的重定向生命周期，在内部自我闭环
+            
+            RedirectContext ctx;
+
+
+            // is_child 传 0
+            // 如果应用失败），这里返回 1 保证主循环不崩，但命令不实际执行
+            if (!apply_redirect(args, &ctx, 0)) {
+                return 1; 
+            }
+            
+            // 真正调用对应的内建函数
+            int status = builtins[i].func(args);
+            
+            // 执行完毕，立刻还原现场
+            restore_redirect(&ctx);
+            
+            return status;
+            
         }
     }
     

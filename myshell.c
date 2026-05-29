@@ -9,7 +9,7 @@
 
 
 #include "builtins.h"
-
+#include "redirect.h"
 
 #define MAX_CMD_LEN 1024
 #define MAX_ARG_COUNT 64
@@ -64,7 +64,7 @@ int main() {
         args[i] = NULL; // 必须以 NULL 结尾
 
         if (i == 0) {
-    // 用户只输入了空格或者直接回车，不做处理，跳回循环开头
+    
         continue; 
         }
 
@@ -91,18 +91,18 @@ int main() {
 
 
 
-        // 文件重定向功能
+        
 
 
 
-
+        // builtin命令
 
         int is_builtin = 0;
         int loop_status = handle_builtin(args, &is_builtin);
     
         if (is_builtin) {
         if (loop_status == 0) break; // 如果是 exit，退出 Shell
-        continue;                    // 如果是 cd，直接进入下一轮循环
+        continue;                    // 如果是 其他内建命令，直接进入下一轮循环
         }
 
         // 创建子进程，执行命令
@@ -119,65 +119,22 @@ int main() {
             signal(SIGINT, SIG_DFL);
 
 
-                // 处理重定向
-               
-        char *redirect_file = NULL;
-        int redirect_idx = -1;
-
-        // 遍历参数数组，寻找 ">"
-        for (int i = 0; args[i] != NULL; i++) {
-            if (strcmp(args[i], ">") == 0) {
-                redirect_idx = i;
-                redirect_file = args[i + 1]; // ">" 的下一个参数就是文件名
-                break;
-            }
+        // 处理重定向
+        RedirectContext ctx;
+        if (!apply_redirect(args, &ctx, 1)) {
+            exit(EXIT_FAILURE);
         }
 
-        // 如果找到了 ">" 符号
-        if (redirect_idx != -1) {
-            if (redirect_file == NULL) {
-                fprintf(stderr, "myshell: syntax error near unexpected token `newline'\n");
-                exit(EXIT_FAILURE);
-            }
-
-            // 1. 打开目标文件
-            // O_WRONLY: 只写模式
-            // O_CREAT: 如果文件不存在则创建
-            // O_TRUNC: 如果文件存在，先清空（擦除）内容
-            // 0644: 创建文件时的标准 Linux 权限（所有者读写，其他人只读）
-            int fd = open(redirect_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) {
-                perror("myshell: open file failed");
-                exit(EXIT_FAILURE);
-            }
-
-            // 2. 偷天换日：把标准输出 (1) 重定向到我们打开的文件描述符 (fd) 上
-            if (dup2(fd, STDOUT_FILENO) < 0) { // STDOUT_FILENO 就是 1
-                perror("myshell: dup2 failed");
-                exit(EXIT_FAILURE);
-            }
-
-            // 3. 关闭用完了的旧文件描述符，保持整洁
-            close(fd);
-
-            // 4. 关键：把 args 数组中的 ">" 及其后面的文件名“斩断”
-            // 比如将 {"ls", "-l", ">", "out.txt", NULL} 
-            // 变成 {"ls", "-l", NULL, "out.txt", NULL}
-            // 这样随后的 execvp 才会只看到 "ls -l"，而不会因为看到 ">" 而报错
-            args[redirect_idx] = NULL;
-        }
-
-       
 
 
-
-            // args[0] 是命令名（如 "ls"），args 是完整的参数数组（如 {"ls", "-l", NULL}）
-            if (execvp(args[0], args) < 0) {
+        // args[0] 是命令名（如 "ls"），args 是完整的参数数组（如 {"ls", "-l", NULL}）
+        if (execvp(args[0], args) < 0) {
                 perror("execvp failed"); 
                 exit(1); // 失败后必须退出子进程，否则子进程会回到你的 Shell 死循环里，变成两个 Shell！
-            }
+         }
 
         } 
+
         else {
             // 3. 这里是父进程（你的 Shell）的空间！
             // pid 此时是子进程的进程 ID。我们需要等待子进程结束。
