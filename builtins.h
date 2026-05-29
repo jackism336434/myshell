@@ -14,4 +14,7 @@ struct builtin {
 int handle_builtin(char **args, int *is_builtin);
 // 【新增】允许主程序把用户输入的原始命令传进来保存
 void add_to_history(const char *cmd);
+
+void load_history_from_file(); // 放在 myshell.c 的 main 循环之前调用
+
 #endif

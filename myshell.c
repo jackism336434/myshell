@@ -20,7 +20,9 @@ int main() {
     char input[MAX_CMD_LEN];
     char *args[MAX_ARG_COUNT];
     
-    
+
+    //加载历史命令文件
+    load_history_from_file();
     //父进程忽略ctrl+c的信号
     signal(SIGINT, SIG_IGN);
 

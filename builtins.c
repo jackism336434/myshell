@@ -45,7 +45,50 @@ static int builtin_exit(char **args) {
 
 
 
-// 【新增】实现保存历史命令的函数
+
+
+// 助手函数：获取历史记录文件的绝对路径（避免硬编码）
+// ========================================================
+static void get_history_path(char *path_buf, size_t buf_size) {
+    char *home = getenv("HOME");
+    if (home != NULL) {
+        // 如果能拿到主目录，拼装成 /home/user/.myshell_history
+        snprintf(path_buf, buf_size, "%s/.myshell_history", home);
+    } else {
+        // 极少发生的保底情况：如果拿不到 HOME，就生在当前目录下
+        snprintf(path_buf, buf_size, ".myshell_history");
+    }
+}
+
+// 1. 启动时加载历史记录
+// ========================================================
+void load_history_from_file() {
+    char history_path[1024];
+    get_history_path(history_path, sizeof(history_path));
+
+    FILE *file = fopen(history_path, "r"); // 以只读模式打开
+    if (file == NULL) {
+        // 如果文件不存在s，直接返回，不报错
+        return;
+    }
+
+    char line[1024];
+    // 逐行读取文件，直到读完或者内存数组装满
+    while (fgets(line, sizeof(line), file) != NULL && history_count < MAX_HISTORY) {
+        // 去掉从文件读出来的末尾换行符 \n
+        line[strcspn(line, "\n")] = '\0';
+        
+        // 如果读取的不是空行，载入内存
+        if (strlen(line) > 0) {
+            strncpy(history_books[history_count], line, 1024);
+            history_count++;
+        }
+    }
+
+    fclose(file);
+}
+
+// 每次输入时：内存追加 + 磁盘实时追加
 void add_to_history(const char *cmd) {
     // 过滤掉空输入或纯空格
     if (cmd == NULL || strlen(cmd) == 0) return;
@@ -60,6 +103,17 @@ void add_to_history(const char *cmd) {
             strcpy(history_books[i-1], history_books[i]);
         }
         strncpy(history_books[MAX_HISTORY-1], cmd, 1024);
+    }
+
+
+    // 磁盘文件实时追加
+    char history_path[1024];
+    get_history_path(history_path, sizeof(history_path));
+
+    FILE *file = fopen(history_path, "a"); // "a" 为追加模式
+    if (file != NULL) {
+        fprintf(file, "%s\n", cmd);  
+        fclose(file);               // 写入 Page Cache，速度极快
     }
 }
 
