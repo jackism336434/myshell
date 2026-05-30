@@ -13,13 +13,21 @@
 
 #define MAX_CMD_LEN 1024
 #define MAX_ARG_COUNT 64
+
+
+// 颜色 ANSI 宏定义
+#define COLOR_GREEN  "\033[1;32m"  // 炫酷绿（用于用户名/Shell名）
+#define COLOR_BLUE   "\033[1;34m"  // 智慧蓝（用于路径）
+#define COLOR_CYAN   "\033[1;36m"  // 青色（可选）
+#define COLOR_RED    "\033[1;31m"  // 警告红（用于错误提示）
+#define COLOR_RESET  "\033[0m"     // 恢复默认（极为重要！）
 int main() {
 
     //定义全局变量
     char path[MAX_CMD_LEN];
     char input[MAX_CMD_LEN];
     char *args[MAX_ARG_COUNT];
-    
+    int last_status = 0; // 记录上一个命令的执行状态，初始为 0 (成功)
 
     //加载历史命令文件
     load_history_from_file();
@@ -30,9 +38,15 @@ int main() {
     
     // 进入 Shell 的核心死循环 (REPL)
     while (1) {
+
+
+        // 根据上一个命令的成败，决定箭头的颜色
+        char *arrow_color = (last_status == 0) ? COLOR_GREEN : COLOR_RED;
         // 1. 获取并打印当前工作路径
         if (getcwd(path, sizeof(path)) != NULL) {
-            printf("[MyShell] %s $ ", path);
+           printf("%smyshell%s:%s%s%s %s❯%s ", 
+               COLOR_GREEN, COLOR_RESET, 
+               COLOR_BLUE, path, COLOR_RESET,arrow_color,COLOR_RESET);
         } else {
             perror("getcwd failed");
             printf("[MyShell] unknown $ ");
@@ -142,6 +156,13 @@ int main() {
             // pid 此时是子进程的进程 ID。我们需要等待子进程结束。
             int status;
             waitpid(pid, &status, 0); // 挂起父进程，直到指定的子进程执行完毕
+
+            // 捕获子进程的退出状态
+            if (WIFEXITED(status)) {
+                last_status = WEXITSTATUS(status); // 拿到子进程 main 函数的 return 值或 exit 值
+            } else {
+                last_status = 1; // 异常退出（比如被 Ctrl+C 砍了）
+            }
         }
 
                 
