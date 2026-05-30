@@ -114,12 +114,15 @@ int main() {
         // builtin命令
 
         int is_builtin = 0;
-        int loop_status = handle_builtin(args, &is_builtin);
+        int cmd_status = 0;
+        int loop_status = handle_builtin(args, &is_builtin, &cmd_status);
     
         if (is_builtin) {
-        if (loop_status == 0) break; // 如果是 exit，退出 Shell
+        if (loop_status == 0) break;            // 如果是 exit，退出 Shell
+         last_status = cmd_status;              
         continue;                    // 如果是 其他内建命令，直接进入下一轮循环
         }
+
 
         // 创建子进程，执行命令
 

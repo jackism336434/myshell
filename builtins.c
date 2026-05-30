@@ -33,8 +33,9 @@ static int builtin_cd(char **args) {
     // 2. 统一调用 chdir 进行目录切换
     if (chdir(target_dir) != 0) {
         perror("myshell: cd");
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 static int builtin_exit(char **args) {
@@ -124,7 +125,7 @@ static int builtin_history(char **args) {
         // 模仿标准 Bash 的排版：序号 + 命令
         printf(" %4d  %s\n", i + 1, history_books[i]);
     }
-    return 1;
+    return 0;
 }
 
 
@@ -140,9 +141,10 @@ static int num_builtins() {
 }
 
 // 3. 对外提供的统一接口
-int handle_builtin(char **args, int *is_builtin) {
+int handle_builtin(char **args, int *is_builtin,int *cmd_status) {
     *is_builtin = 0;
-    
+    *cmd_status = 0; //指示命令是成功还是失败
+
     for (int i = 0; i < num_builtins(); i++) {
         if (strcmp(args[0], builtins[i].name) == 0) {
             *is_builtin = 1;  // 取1则为内建命令
@@ -154,16 +156,23 @@ int handle_builtin(char **args, int *is_builtin) {
             // is_child 传 0
             // 如果应用失败），这里返回 1 保证主循环不崩，但命令不实际执行
             if (!apply_redirect(args, &ctx, 0)) {
+                *cmd_status = 1;
                 return 1; 
             }
             
             // 真正调用对应的内建函数
-            int status = builtins[i].func(args);
+            int func_ret= builtins[i].func(args);
             
             // 执行完毕，立刻还原现场
             restore_redirect(&ctx);
             
-            return status;
+
+            // 特殊处理 exit 拦截
+            if (strcmp(builtins[i].name, "exit") == 0) {
+                return 0; // 如果不处理会导致exit无法正常退出
+            }
+            *cmd_status = func_ret;
+            return 1;
             
         }
     }
