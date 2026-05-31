@@ -107,10 +107,18 @@ int main() {
 
 
 
-        
+        // 核心架构层 1：扫描管道符，进行高层分流
+       
+        int has_pipe = 0;
+        for (int i = 0; args[i] != NULL; i++) {
+            if (strcmp(args[i], "|") == 0) {
+                has_pipe = 1;
+                break;
+            }
+        }
 
 
-
+        if(!has_pipe){
         // builtin命令
 
         int is_builtin = 0;
@@ -170,6 +178,117 @@ int main() {
 
                 
             }
+
+        else{
+            //分支B：有管道符，需要处理管道
+            // 1. 统计命令总数 N (通过数有几个 '|')
+            int num_cmds = 0;
+            for (int i = 0; args[i] != NULL; i++) {
+                if (i == 0 || strcmp(args[i-1], "|") == 0) {
+                    num_cmds++;
+                }
+            }
+
+            // 2. 动态解析，提取每个子命令的起始指针
+            char **cmd_args[64]; // 最多支持 64 级管道
+            int cmd_idx = 0;
+            
+            cmd_args[cmd_idx++] = &args[0];
+            for (int i = 0; args[i] != NULL; i++) {
+                if (strcmp(args[i], "|") == 0) {
+                    args[i] = NULL; // 彻底斩断前一个命令的参数尾巴
+                    cmd_args[cmd_idx++] = &args[i + 1];
+                }
+            }
+
+
+            // 3. 批量创建管道（N 个命令需要 N-1 个管道）
+            int num_pipes = num_cmds - 1;
+            int pipes[64][2]; // 管道描述符阵列
+            for (int i = 0; i < num_pipes; i++) {
+                if (pipe(pipes[i]) < 0) {
+                    perror("myshell: pipe creation failed");
+                    continue;
+                }
+            }
+
+            // 4. 循环 fork 出 N 个子进程
+            pid_t pids[64];
+            for (int i = 0; i < num_cmds; i++) {
+                pids[i] = fork();
+                
+                if (pids[i] == 0) { // --------- 子进程 i 的独立世界 ---------
+                    signal(SIGINT, SIG_DFL);
+
+                    // 换道 1：如果不是第一个命令，它的标准输入要接上【前一个管道的读端】
+                    if (i > 0) {
+                        dup2(pipes[i - 1][0], STDIN_FILENO);
+                    }
+                    // 换道 2：如果不是最后一个命令，它的标准输出要接上【当前管道的写端】
+                    if (i < num_cmds - 1) {
+                        dup2(pipes[i][1], STDOUT_FILENO);
+                    }
+
+                    // 【核心细节】子进程在换道完成后，必须闭合所有管道描述符，防止卡死
+                    for (int j = 0; j < num_pipes; j++) {
+                        close(pipes[j][0]);
+                        close(pipes[j][1]);
+                    }
+
+                    // 独立享受重定向功能（例如 cmd1 | cmd2 > out.txt）
+                    RedirectContext ctx;
+                    if (!apply_redirect(cmd_args[i], &ctx, 1)) {
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // 执行判定：先试内建，不行走外部
+                    int is_builtin = 0;
+                    int cmd_status = 0;
+                    int ret_status = handle_builtin(cmd_args[i], &is_builtin, &cmd_status);
+                    if (is_builtin) {
+                        // 内建命令在子进程中跑完后，必须通过 exit 释放子进程！
+                        exit(ret_status == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+                    }
+
+                    // 外部命令
+                    execvp(cmd_args[i][0], cmd_args[i]);
+                    perror("myshell");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            // 5. 父进程，必须立刻关闭它手里的所有管道读写端，
+            // 否则因为父进程的读端没关闭，所有管道的输入直接卡死在这
+            
+            for (int i = 0; i < num_pipes; i++) {
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+
+            // 6. 父进程挂起，依次回收这 N 个子进程，并捕捉最后一个命令的状态
+            int last_cmd_status = 0;
+            for (int i = 0; i < num_cmds; i++) {
+                int status;
+                waitpid(pids[i], &status, 0);
+                if (i == num_cmds - 1) { // 只关心最后一个命令的成败
+                    if (WIFEXITED(status)) {
+                        last_cmd_status = WEXITSTATUS(status);
+                    } else {
+                        last_cmd_status = 1;
+                    }
+                }
+            }
+            last_status = last_cmd_status; // 刷新彩色箭头颜色
+        }
+
+
+
+        }
+
+
+
+
+
 
     return 0;
 }
