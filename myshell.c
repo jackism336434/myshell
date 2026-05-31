@@ -43,6 +43,7 @@ int main() {
         // 根据上一个命令的成败，决定箭头的颜色
         char *arrow_color = (last_status == 0) ? COLOR_GREEN : COLOR_RED;
         // 1. 获取并打印当前工作路径
+        if(isatty(STDIN_FILENO)){
         if (getcwd(path, sizeof(path)) != NULL) {
            printf("%smyshell%s:%s%s%s %s❯%s ", 
                COLOR_GREEN, COLOR_RESET, 
@@ -54,7 +55,7 @@ int main() {
         
         // 强行刷新缓冲区，确保提示符立刻显示
         fflush(stdout);
-
+    }
         // 2. 等待用户输入
         if (fgets(input, sizeof(input), stdin) == NULL) {
             // 处理 Ctrl+D (EOF) 情况
@@ -89,15 +90,15 @@ int main() {
         break;
         }
 
-        //test
-        int j=0;
-        while(1){
-            if(args[j]==NULL){
-                break;
-            }
-            printf("%s\n",args[j]);
-            j++;
-        }
+        // //test
+        // int j=0;
+        // while(1){
+        //     if(args[j]==NULL){
+        //         break;
+        //     }
+        //     printf("%s\n",args[j]);
+        //     j++;
+        // }
 
         // 4. 退出条件
         if (strcmp(input, "exit") == 0 || strcmp(input, "quit") == 0) {
