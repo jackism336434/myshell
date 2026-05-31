@@ -5,7 +5,8 @@
 typedef struct {
     char *file;         // 重定向的目标文件名
     int redirect_idx;   // '>' 在 args 数组中的下标
-    int saved_stdout;   // 备份的原标准输出文件描述符（用于父进程还原现场）
+    int saved_stdout;
+    int saved_stdin;   
 } RedirectContext;
 
 // 1. 解析参数数组并应用重定向（内部处理 open 和 dup2）
