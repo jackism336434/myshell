@@ -10,12 +10,19 @@ int apply_redirect(char **args, RedirectContext *ctx, int is_child) {
     ctx->file = NULL;
     ctx->redirect_idx = -1;
     ctx->saved_stdout = -1;
+    int is_append = 0; // 默认是覆写模式
 
     // 1. 扫描 `>` 符号
     for (int i = 0; args[i] != NULL; i++) {
-        if (strcmp(args[i], ">") == 0) {
+       if (strcmp(args[i], ">>") == 0) {
             ctx->redirect_idx = i;
             ctx->file = args[i + 1];
+            is_append = 1; // 这是追加模式
+            break;
+        } else if (strcmp(args[i], ">") == 0) {
+            ctx->redirect_idx = i;
+            ctx->file = args[i + 1];
+            is_append = 0; // 这是覆写模式
             break;
         }
     }
@@ -34,8 +41,19 @@ int apply_redirect(char **args, RedirectContext *ctx, int is_child) {
     // 4. 斩断 args 数组，剥离出干净的命令参数
     args[ctx->redirect_idx] = NULL;
 
-    // 5. 打开目标文件，只写模式
-    int fd = open(ctx->file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+
+    int flags = O_WRONLY | O_CREAT;
+    if (is_append) {
+        flags |= O_APPEND; // 叠加上 O_APPEND
+    } else {
+        flags |= O_TRUNC;  
+    }
+
+
+
+   // 打开文件
+    int fd = open(ctx->file, flags, 0644);
     if (fd < 0) {
         perror("myshell: open failed");
         return 0;
@@ -57,6 +75,9 @@ int apply_redirect(char **args, RedirectContext *ctx, int is_child) {
 
     return 1;
 }
+
+
+
 
 void restore_redirect(RedirectContext *ctx) {
     // 只有当备份过现场（saved_stdout >= 0）时，才需要还原
