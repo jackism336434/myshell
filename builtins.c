@@ -129,11 +129,49 @@ static int builtin_history(char **args) {
 }
 
 
+
+// export命令
+static int builtin_export(char **args) {
+    // 1. 如果只输入了 export 没带参数，标准做法是打印当前所有的环境变量
+    if (args[1] == NULL) {
+        extern char **environ;
+        for (int i = 0; environ[i] != NULL; i++) {
+            printf("%s\n", environ[i]);
+        }
+        return 0; 
+    }
+
+    // 2. 解析 export MY_VAR=123 这种格式
+    // 我们需要在这个字符串里寻找 '='
+    char *arg = args[1];
+    char *equal_sign = strchr(arg, '=');
+
+    if (equal_sign == NULL) {
+        // 说明用户输的是 export MY_VAR 这种没有赋值的
+        return 0;
+    }
+
+    *equal_sign = '\0'; // 把 '=' 强行改成 '\0'，这样把原字符串一分为二了
+    char *name = arg;            // 左半部分变成了变量名
+    char *value = equal_sign + 1; // 右半部分变成了变量值
+
+    // 3. 调用系统核心函数注入环境变量
+    if (setenv(name, value, 1) != 0) {
+        perror("myshell: export");
+        return 1; // 失败
+    }
+
+    return 0; // 成功
+}
+
+
+
 // 2. 内部的命令路由表
 static struct builtin builtins[] = {
     {"cd", builtin_cd},
     {"exit", builtin_exit},
-    {"history", builtin_history}
+    {"history", builtin_history},
+    {"export", builtin_export}
 };
 
 static int num_builtins() {
