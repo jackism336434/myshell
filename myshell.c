@@ -10,6 +10,9 @@
 
 #include "builtins.h"
 #include "redirect.h"
+#include "wildcard.h"
+
+
 
 #define MAX_CMD_LEN 1024
 #define MAX_ARG_COUNT 64
@@ -107,6 +110,8 @@ int main() {
         }
 
 
+        // 5. 处理通配符
+        expand_wildcards(args);
 
         // 核心架构层 1：扫描管道符，进行高层分流
        
