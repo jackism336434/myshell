@@ -6,7 +6,7 @@
 
 #include "builtins.h"
 #include "redirect.h"
-
+#include "alias.h"
 // 【新增】全局静态变量，用于存放历史命令（只对当前文件可见，保证封装性）
 static char history_books[MAX_HISTORY][1024];
 static int history_count = 0;
@@ -171,7 +171,8 @@ static struct builtin builtins[] = {
     {"cd", builtin_cd},
     {"exit", builtin_exit},
     {"history", builtin_history},
-    {"export", builtin_export}
+    {"export", builtin_export},
+    {"alias", builtin_alias}
 };
 
 static int num_builtins() {

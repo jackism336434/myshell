@@ -109,6 +109,8 @@ int main() {
             break;
         }
 
+        // 4. 处理别名
+        expand_alias(args);
 
         // 5. 处理通配符
         expand_wildcards(args);
