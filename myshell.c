@@ -6,12 +6,13 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>  // 提供 open 函数
-
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "builtins.h"
 #include "redirect.h"
 #include "wildcard.h"
-
+#include "alias.h"
 
 
 #define MAX_CMD_LEN 1024
@@ -34,8 +35,6 @@ int main() {
 
     //加载历史命令文件
     load_history_from_file();
-    //父进程忽略ctrl+c的信号
-    signal(SIGINT, SIG_IGN);
 
     
     
@@ -45,30 +44,45 @@ int main() {
 
         // 根据上一个命令的成败，决定箭头的颜色
         char *arrow_color = (last_status == 0) ? COLOR_GREEN : COLOR_RED;
-        // 1. 获取并打印当前工作路径
-        if(isatty(STDIN_FILENO)){
-        if (getcwd(path, sizeof(path)) != NULL) {
-           printf("%smyshell%s:%s%s%s %s❯%s ", 
-               COLOR_GREEN, COLOR_RESET, 
-               COLOR_BLUE, path, COLOR_RESET,arrow_color,COLOR_RESET);
+
+        // 1. 构建 readline 提示符
+        // 用 \001 / \002 包裹 ANSI 转义序列，readline 才能正确计算提示符宽度
+        char prompt[4096];
+        if (isatty(STDIN_FILENO)) {
+            if (getcwd(path, sizeof(path)) != NULL) {
+                snprintf(prompt, sizeof(prompt),
+                    "\001%s\002myshell\001%s\002:\001%s\002%s\001%s\002 \001%s\002❯\001%s\002 ",
+                    COLOR_GREEN, COLOR_RESET,
+                    COLOR_BLUE, path, COLOR_RESET,
+                    arrow_color, COLOR_RESET);
+            } else {
+                snprintf(prompt, sizeof(prompt), "[MyShell] unknown $ ");
+            }
         } else {
-            perror("getcwd failed");
-            printf("[MyShell] unknown $ ");
+            prompt[0] = '\0';  // 非交互模式不显示提示符
         }
-        
-        // 强行刷新缓冲区，确保提示符立刻显示
-        fflush(stdout);
-    }
-        // 2. 等待用户输入
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            // 处理 Ctrl+D (EOF) 情况
+
+        // 2. 用 readline 读取用户输入（支持行编辑与历史导航）
+        char *line = readline(prompt);
+        if (line == NULL) {
+            // Ctrl+D (EOF) 情况
             printf("\n");
             break;
         }
-        // 3. 去掉末尾的回车符 '\n'
+
+        // 3. 非空行加入历史
+        if (*line) {
+            add_history(line);         // readline 历史，供上下箭头导航
+            add_to_history(line);      // 写入磁盘持久化
+        }
+
+        // 4. 复制到 input 缓冲区，保持后续代码兼容
+        strncpy(input, line, sizeof(input) - 1);
+        input[sizeof(input) - 1] = '\0';
+        free(line);
+
+        // 去掉末尾换行（readline 不返回换行符，但保留此调用无害）
         input[strcspn(input, "\n")] = '\0';
-        
-        add_to_history(input);
         
         int i=0;
         // 1. 切分第一个 Token
@@ -173,6 +187,7 @@ int main() {
         else {
             // 3. 这里是父进程（你的 Shell）的空间！
             // pid 此时是子进程的进程 ID。我们需要等待子进程结束。
+            signal(SIGINT, SIG_IGN);  // 父进程忽略 Ctrl+C，由子进程处理
             int status;
             waitpid(pid, &status, 0); // 挂起父进程，直到指定的子进程执行完毕
 
@@ -274,6 +289,7 @@ int main() {
             }
 
             // 6. 父进程挂起，依次回收这 N 个子进程，并捕捉最后一个命令的状态
+            signal(SIGINT, SIG_IGN);  // 父进程忽略 Ctrl+C，由子进程处理
             int last_cmd_status = 0;
             for (int i = 0; i < num_cmds; i++) {
                 int status;

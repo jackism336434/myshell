@@ -2,14 +2,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "builtins.h"
 #include "redirect.h"
 #include "alias.h"
-// 【新增】全局静态变量，用于存放历史命令（只对当前文件可见，保证封装性）
-static char history_books[MAX_HISTORY][1024];
-static int history_count = 0;
 
 
 
@@ -67,63 +65,32 @@ void load_history_from_file() {
     char history_path[1024];
     get_history_path(history_path, sizeof(history_path));
 
-    FILE *file = fopen(history_path, "r"); // 以只读模式打开
-    if (file == NULL) {
-        // 如果文件不存在s，直接返回，不报错
-        return;
-    }
-
-    char line[1024];
-    // 逐行读取文件，直到读完或者内存数组装满
-    while (fgets(line, sizeof(line), file) != NULL && history_count < MAX_HISTORY) {
-        // 去掉从文件读出来的末尾换行符 \n
-        line[strcspn(line, "\n")] = '\0';
-        
-        // 如果读取的不是空行，载入内存
-        if (strlen(line) > 0) {
-            strncpy(history_books[history_count], line, 1024);
-            history_count++;
-        }
-    }
-
-    fclose(file);
+    // 使用 readline 内置函数从文件加载历史
+    read_history(history_path);
+    // 限制内存中保存的历史条数
+    stifle_history(MAX_HISTORY);
 }
 
-// 每次输入时：内存追加 + 磁盘实时追加
+// 每次输入时：磁盘实时追加（readline 已在内存中管理历史）
 void add_to_history(const char *cmd) {
-    // 过滤掉空输入或纯空格
+    // 过滤掉空输入
     if (cmd == NULL || strlen(cmd) == 0) return;
 
-    // 如果记满了，这里采用最简单的覆盖逻辑（高级做法可以用循环队列，我们先求稳）
-    if (history_count < MAX_HISTORY) {
-        strncpy(history_books[history_count], cmd, 1024);
-        history_count++;
-    } else {
-        // 往前平移一行，腾出最后一行
-        for (int i = 1; i < MAX_HISTORY; i++) {
-            strcpy(history_books[i-1], history_books[i]);
-        }
-        strncpy(history_books[MAX_HISTORY-1], cmd, 1024);
-    }
-
-
-    // 磁盘文件实时追加
+    // 追加最后一条命令到磁盘文件
     char history_path[1024];
     get_history_path(history_path, sizeof(history_path));
-
-    FILE *file = fopen(history_path, "a"); // "a" 为追加模式
-    if (file != NULL) {
-        fprintf(file, "%s\n", cmd);  
-        fclose(file);               // 写入 Page Cache，速度极快
-    }
+    append_history(1, history_path);
 }
 
 //builtin history命令
 static int builtin_history(char **args) {
-    (void)args; // 暂时用不到参数，用来消除“未使用变量”的编译器警告
-    for (int i = 0; i < history_count; i++) {
-        // 模仿标准 Bash 的排版：序号 + 命令
-        printf(" %4d  %s\n", i + 1, history_books[i]);
+    (void)args; // 暂时用不到参数，用来消除”未使用变量”的编译器警告
+    HIST_ENTRY **hist_list = history_list();
+    if (hist_list) {
+        for (int i = 0; hist_list[i] != NULL; i++) {
+            // history_base 是第一条记录的编号（通常为 1）
+            printf(" %4d  %s\n", i + history_base, hist_list[i]->line);
+        }
     }
     return 0;
 }

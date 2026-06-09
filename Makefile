@@ -9,8 +9,10 @@ SRC = myshell.c builtins.c redirect.c wildcard.c alias.c
 # 默认目标：编译生成可执行文件
 all: $(TARGET)
 
+LDFLAGS = -lreadline
+
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
 
 # 运行伪目标：编译并直接启动 shell
 run: $(TARGET)
