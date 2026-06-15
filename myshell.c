@@ -24,7 +24,7 @@
 #define COLOR_BLUE   "\033[1;34m"  // 智慧蓝（用于路径）
 #define COLOR_CYAN   "\033[1;36m"  // 青色（可选）
 #define COLOR_RED    "\033[1;31m"  // 警告红（用于错误提示）
-#define COLOR_RESET  "\033[0m"     // 恢复默认（极为重要！）
+#define COLOR_RESET  "\033[0m"     // 恢复默认
 int main() {
 
     //定义全局变量
@@ -46,7 +46,7 @@ int main() {
         char *arrow_color = (last_status == 0) ? COLOR_GREEN : COLOR_RED;
 
         // 1. 构建 readline 提示符
-        // 用 \001 / \002 包裹 ANSI 转义序列，readline 才能正确计算提示符宽度
+        // 用 \001 和 \002 包裹 ANSI 转义序列，readline 才能正确计算提示符宽度
         char prompt[4096];
         if (isatty(STDIN_FILENO)) {
             if (getcwd(path, sizeof(path)) != NULL) {
@@ -73,13 +73,14 @@ int main() {
         // 3. 非空行加入历史
         if (*line) {
             add_history(line);         // readline 历史，供上下箭头导航
+                    
             add_to_history(line);      // 写入磁盘持久化
         }
 
         // 4. 复制到 input 缓冲区，保持后续代码兼容
         strncpy(input, line, sizeof(input) - 1);
         input[sizeof(input) - 1] = '\0';
-        free(line);
+        free(line);  //防止内存泄漏
 
         // 去掉末尾换行（readline 不返回换行符，但保留此调用无害）
         input[strcspn(input, "\n")] = '\0';
@@ -185,7 +186,7 @@ int main() {
         } 
 
         else {
-            // 3. 这里是父进程（你的 Shell）的空间！
+            // 3. 这里是父进程
             // pid 此时是子进程的进程 ID。我们需要等待子进程结束。
             signal(SIGINT, SIG_IGN);  // 父进程忽略 Ctrl+C，由子进程处理
             int status;
