@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -g
 
 # 定义目标可执行文件名和源文件
 TARGET = myshell
-SRC = myshell.c builtins.c redirect.c wildcard.c alias.c
+SRC = myshell.c builtins.c redirect.c wildcard.c alias.c lexer.c
 
 # 默认目标：编译生成可执行文件
 all: $(TARGET)

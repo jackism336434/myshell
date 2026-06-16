@@ -13,6 +13,7 @@
 #include "redirect.h"
 #include "wildcard.h"
 #include "alias.h"
+#include "lexer.h"
 
 
 #define MAX_CMD_LEN 1024
@@ -30,7 +31,9 @@ int main() {
     //定义全局变量
     char path[MAX_CMD_LEN];
     char input[MAX_CMD_LEN];
+    char lex_buf[MAX_CMD_LEN];           // 词法分析器输出缓冲区
     char *args[MAX_ARG_COUNT];
+    TokenType arg_types[MAX_ARG_COUNT];  // 每个 arg 对应的 token 类型
     int last_status = 0; // 记录上一个命令的执行状态，初始为 0 (成功)
 
     //加载历史命令文件
@@ -85,22 +88,17 @@ int main() {
         // 去掉末尾换行（readline 不返回换行符，但保留此调用无害）
         input[strcspn(input, "\n")] = '\0';
         
-        int i=0;
-        // 1. 切分第一个 Token
-        char *token = strtok(input, " ");
-
-
-        while (token != NULL && i < MAX_ARG_COUNT - 1) {
-        args[i++] = token;
-        token = strtok(NULL, " ");    // strtok 后续调用第一个参数要传 NULL
+        // 1. 词法分析：将输入切分为 tokens，识别引号、运算符
+        int ntok = lex(input, lex_buf, sizeof(lex_buf),
+                       args, arg_types, MAX_ARG_COUNT);
+        if (ntok < 0) {
+            fprintf(stderr, "myshell: syntax error: unmatched quote\n");
+            last_status = 1;
+            continue;
         }
 
-
-        args[i] = NULL; // 必须以 NULL 结尾
-
-        if (i == 0) {
-    
-        continue; 
+        if (ntok == 0) {
+            continue;
         }
 
 // 4. 此时再安全的进行命令判断
@@ -131,10 +129,10 @@ int main() {
         expand_wildcards(args);
 
         // 核心架构层 1：扫描管道符，进行高层分流
-       
+
         int has_pipe = 0;
         for (int i = 0; args[i] != NULL; i++) {
-            if (strcmp(args[i], "|") == 0) {
+            if (arg_types[i] == TOK_PIPE) {
                 has_pipe = 1;
                 break;
             }
@@ -208,7 +206,7 @@ int main() {
             // 1. 统计命令总数 N (通过数有几个 '|')
             int num_cmds = 0;
             for (int i = 0; args[i] != NULL; i++) {
-                if (i == 0 || strcmp(args[i-1], "|") == 0) {
+                if (i == 0 || arg_types[i - 1] == TOK_PIPE) {
                     num_cmds++;
                 }
             }
@@ -216,10 +214,10 @@ int main() {
             // 2. 动态解析，提取每个子命令的起始指针
             char **cmd_args[64]; // 最多支持 64 级管道
             int cmd_idx = 0;
-            
+
             cmd_args[cmd_idx++] = &args[0];
             for (int i = 0; args[i] != NULL; i++) {
-                if (strcmp(args[i], "|") == 0) {
+                if (arg_types[i] == TOK_PIPE) {
                     args[i] = NULL; // 彻底斩断前一个命令的参数尾巴
                     cmd_args[cmd_idx++] = &args[i + 1];
                 }
